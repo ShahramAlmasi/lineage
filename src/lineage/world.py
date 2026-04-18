@@ -157,6 +157,40 @@ class WorldConfig:
 
 
 @dataclass
+class SpatialHash:
+    """Grid-based spatial hash for fast neighbor queries."""
+
+    def __init__(self, cell_size: float, width: float, height: float) -> None:
+        self.cell_size = cell_size
+        self.width = width
+        self.height = height
+        self.cells: dict[tuple[int, int], list[object]] = {}
+
+    def _cell(self, x: float, y: float) -> tuple[int, int]:
+        return (int(x // self.cell_size), int(y // self.cell_size))
+
+    def add(self, obj: object, x: float, y: float) -> None:
+        cell = self._cell(x, y)
+        self.cells.setdefault(cell, []).append(obj)
+
+    def clear(self) -> None:
+        self.cells.clear()
+
+    def query(
+        self, x: float, y: float, radius: float
+    ) -> list[object]:
+        results = []
+        r_cells = int(radius // self.cell_size) + 1
+        cx, cy = self._cell(x, y)
+        for dx in range(-r_cells, r_cells + 1):
+            for dy in range(-r_cells, r_cells + 1):
+                cell = (cx + dx, cy + dy)
+                if cell in self.cells:
+                    results.extend(self.cells[cell])
+        return results
+
+
+@dataclass
 class World:
     """The simulation world."""
 
@@ -168,9 +202,13 @@ class World:
     total_births: int = 0
     total_deaths: int = 0
     rng: random.Random = field(init=False)
+    _organism_hash: SpatialHash = field(init=False)
+    _food_hash: SpatialHash = field(init=False)
 
     def __post_init__(self) -> None:
         self.rng = random.Random(self.config.seed)
+        self._organism_hash = SpatialHash(10.0, self.width(), self.height())
+        self._food_hash = SpatialHash(10.0, self.width(), self.height())
 
     def width(self) -> float:
         return float(self.config.width)
@@ -238,23 +276,35 @@ class World:
         for _ in range(self.config.initial_population):
             self.spawn_organism()
 
+    def rebuild_spatial_hash(self) -> None:
+        self._organism_hash.clear()
+        self._food_hash.clear()
+        for o in self.organisms:
+            if o.alive:
+                self._organism_hash.add(o, o.position.x, o.position.y)
+        for f in self.food:
+            self._food_hash.add(f, f.position.x, f.position.y)
+
     def nearby_food(self, position: Position, radius: float) -> list[Food]:
-        """Find food within radius of position."""
+        candidates = self._food_hash.query(position.x, position.y, radius)
+        w, h = self.width(), self.height()
         return [
-            f for f in self.food
-            if position.distance_to(f.position, self.width(), self.height()) <= radius
+            c for c in candidates
+            if isinstance(c, Food)
+            and position.distance_to(c.position, w, h) <= radius
         ]
 
     def nearby_organisms(self, position: Position, radius: float, exclude_id: int | None = None) -> list[Organism]:
-        """Find organisms within radius of position."""
+        candidates = self._organism_hash.query(position.x, position.y, radius)
+        w, h = self.width(), self.height()
         return [
-            o for o in self.organisms
-            if o.alive and o.id != exclude_id
-            and position.distance_to(o.position, self.width(), self.height()) <= radius
+            c for c in candidates
+            if isinstance(c, Organism) and c.alive
+            and c.id != exclude_id
+            and position.distance_to(c.position, w, h) <= radius
         ]
 
     def remove_dead(self) -> None:
-        """Remove dead organisms and old food."""
         dead_count = sum(1 for o in self.organisms if not o.alive)
         self.total_deaths += dead_count
         self.organisms = [o for o in self.organisms if o.alive]

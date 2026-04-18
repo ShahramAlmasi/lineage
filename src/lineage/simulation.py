@@ -40,9 +40,10 @@ class Simulation:
             self.species_tracker.assign_species(org, tick=0)
 
     def run_tick(self) -> dict[str, float | int]:
-        """Execute one simulation tick. Returns statistics."""
         self._tick += 1
         self.world.tick_count = self._tick
+
+        self.world.rebuild_spatial_hash()
 
         if self.rng.random() < self.world.config.food_spawn_rate:
             self.world.spawn_food()
@@ -348,13 +349,16 @@ class Simulation:
         self.species_tracker.assign_species(child, self._tick)
 
     def _apply_carrying_capacity(self) -> None:
-        """Apply carrying capacity pressure."""
         current_pop = len([o for o in self.world.organisms if o.alive])
         max_pop = self.world.config.max_population
-        if current_pop > max_pop * 0.9:
+        ratio = current_pop / max_pop
+        if ratio > 0.7:
+            pressure = (ratio - 0.7) / 0.3
             for org in self.world.organisms:
-                if org.alive and self.rng.random() < 0.1:
-                    org.energy -= 1.0
+                if org.alive:
+                    org.energy -= org.metabolism_cost() * pressure * 2.0
+                    if self.rng.random() < pressure * 0.3:
+                        org.energy -= 2.0
                     if org.energy <= 0:
                         org.mark_dead()
 

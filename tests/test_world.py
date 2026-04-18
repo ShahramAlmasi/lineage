@@ -64,6 +64,7 @@ class TestWorld:
         config = WorldConfig(width=100, height=100, seed=42)
         world = World(config=config)
         world.food = [Food(position=Position(10, 10), energy=10)]
+        world.rebuild_spatial_hash()
         nearby = world.nearby_food(Position(10, 10), 5)
         assert len(nearby) == 1
 
@@ -75,6 +76,7 @@ class TestWorld:
             Organism(id=1, genome=genome, position=Position(10, 10)),
             Organism(id=2, genome=genome, position=Position(12, 12)),
         ]
+        world.rebuild_spatial_hash()
         nearby = world.nearby_organisms(Position(10, 10), 5, exclude_id=1)
         assert len(nearby) == 1
 
