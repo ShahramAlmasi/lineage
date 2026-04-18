@@ -22,16 +22,16 @@ def main() -> int:
 
     run_parser = subparsers.add_parser("run", help="Run a simulation")
     run_parser.add_argument(
-        "--world", type=str, default="200x200", help="World size (WxH)"
+        "--world", type=str, default=argparse.SUPPRESS, help="World size (WxH)"
     )
     run_parser.add_argument(
-        "--population", type=int, default=200, help="Initial population"
+        "--population", type=int, default=argparse.SUPPRESS, help="Initial population"
     )
     run_parser.add_argument(
-        "--ticks", type=int, default=100_000, help="Number of ticks to run"
+        "--ticks", type=int, default=argparse.SUPPRESS, help="Number of ticks to run"
     )
     run_parser.add_argument(
-        "--seed", type=int, default=None, help="Random seed"
+        "--seed", type=int, default=argparse.SUPPRESS, help="Random seed"
     )
     run_parser.add_argument(
         "--preset", type=str, default=None, help="Use a preset config"
@@ -40,13 +40,13 @@ def main() -> int:
         "--headless", action="store_true", help="Run without rendering"
     )
     run_parser.add_argument(
-        "--output", type=str, default="recording.jsonl", help="Output file"
+        "--output", type=str, default=argparse.SUPPRESS, help="Output file"
     )
     run_parser.add_argument(
-        "--record-every", type=int, default=100, help="Record every N ticks"
+        "--record-every", type=int, default=argparse.SUPPRESS, help="Record every N ticks"
     )
     run_parser.add_argument(
-        "--render-every", type=int, default=10, help="Render every N ticks"
+        "--render-every", type=int, default=argparse.SUPPRESS, help="Render every N ticks"
     )
 
     replay_parser = subparsers.add_parser("replay", help="Replay a recording")
@@ -73,54 +73,55 @@ def main() -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     if args.preset:
         sim_config = get_preset(args.preset)
-        if args.seed is not None:
+        if hasattr(args, "seed"):
             sim_config.seed = args.seed
             sim_config.world.seed = args.seed
-        if args.output is not None:
+        if hasattr(args, "output"):
             sim_config.output_file = args.output
-        if args.ticks is not None:
+        if hasattr(args, "ticks"):
             sim_config.ticks = args.ticks
-        if args.record_every is not None:
+        if hasattr(args, "record_every"):
             sim_config.record_every_n_ticks = args.record_every
-        if args.render_every is not None:
+        if hasattr(args, "render_every"):
             sim_config.render_every_n_ticks = args.render_every
-        if args.population is not None:
+        if hasattr(args, "population"):
             sim_config.world.initial_population = args.population
             sim_config.world.max_population = args.population * 5
             sim_config.world.initial_food = args.population * 2
-        if args.world is not None:
+        if hasattr(args, "world"):
             world_parts = args.world.split("x")
             if len(world_parts) == 2:
                 sim_config.world.width = int(world_parts[0])
                 sim_config.world.height = int(world_parts[1])
         sim_config.headless = args.headless
     else:
-        world_parts = args.world.split("x")
+        world_parts = args.world.split("x") if hasattr(args, "world") else ["200", "200"]
         if len(world_parts) != 2:
             print("Error: --world must be in format WxH (e.g., 200x200)", file=sys.stderr)
             return 1
 
         width, height = int(world_parts[0]), int(world_parts[1])
+        population = args.population if hasattr(args, "population") else 200
         sim_config = SimulationConfig(
             world=WorldConfig(
                 width=width,
                 height=height,
-                initial_population=args.population,
-                max_population=args.population * 5,
-                initial_food=args.population * 2,
+                initial_population=population,
+                max_population=population * 5,
+                initial_food=population * 2,
                 food_spawn_rate=0.1,
                 food_energy=15.0,
                 fertile_zones=[(0.5, 0.5, 0.3)],
                 carrying_capacity_pressure=0.001,
                 speciation_threshold=0.3,
-                seed=args.seed,
+                seed=args.seed if hasattr(args, "seed") else None,
             ),
-            ticks=args.ticks,
-            record_every_n_ticks=args.record_every,
-            render_every_n_ticks=args.render_every,
+            ticks=args.ticks if hasattr(args, "ticks") else 100_000,
+            record_every_n_ticks=args.record_every if hasattr(args, "record_every") else 100,
+            render_every_n_ticks=args.render_every if hasattr(args, "render_every") else 10,
             headless=args.headless,
-            seed=args.seed,
-            output_file=args.output,
+            seed=args.seed if hasattr(args, "seed") else None,
+            output_file=args.output if hasattr(args, "output") else "recording.jsonl",
         )
 
     simulation = Simulation(config=sim_config)

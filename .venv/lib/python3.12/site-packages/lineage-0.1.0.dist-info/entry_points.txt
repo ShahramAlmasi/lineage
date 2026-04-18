@@ -1,0 +1,2 @@
+[console_scripts]
+lineage = lineage.cli:main
