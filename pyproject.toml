@@ -9,11 +9,12 @@ description = "Evolutionary simulator - digital organisms compete, mutate, and s
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
-dependencies = [
-    "rich>=13.0.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
+rich = [
+    "rich>=13.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

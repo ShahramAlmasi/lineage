@@ -84,6 +84,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             sim_config.record_every_n_ticks = args.record_every
         if args.render_every is not None:
             sim_config.render_every_n_ticks = args.render_every
+        if args.population is not None:
+            sim_config.world.initial_population = args.population
+            sim_config.world.max_population = args.population * 5
+            sim_config.world.initial_food = args.population * 2
+        if args.world is not None:
+            world_parts = args.world.split("x")
+            if len(world_parts) == 2:
+                sim_config.world.width = int(world_parts[0])
+                sim_config.world.height = int(world_parts[1])
         sim_config.headless = args.headless
     else:
         world_parts = args.world.split("x")

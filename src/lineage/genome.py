@@ -5,7 +5,9 @@ import math
 import random
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, TypeVar
+
+_T = TypeVar("_T")
 
 
 class Shape(Enum):
@@ -496,9 +498,9 @@ def _maybe_mutate(
     return new_val
 
 
-def _maybe_mutate_enum[T](
-    value: T, rate: float, choices: list[T], rng: random.Random
-) -> T:
+def _maybe_mutate_enum(
+    value: _T, rate: float, choices: list[_T], rng: random.Random
+) -> _T:
     if rng.random() > rate * 0.3:
         return value
     return rng.choice(choices)
