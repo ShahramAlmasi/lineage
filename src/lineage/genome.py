@@ -434,7 +434,7 @@ def mutate(
     g = Genome(
         size=_maybe_mutate(genome.size, rate, magnitude, "size", r),
         shape=_maybe_mutate_enum(genome.shape, rate, list(Shape), r),
-        color_hue=(genome.color_hue + r.gauss(0, magnitude * 360)) % 360,
+        color_hue=_maybe_mutate(genome.color_hue, rate, magnitude * 360, "color_hue", r) % 360,
         color_sat=_maybe_mutate(genome.color_sat, rate, magnitude, "color_sat", r),
         color_val=_maybe_mutate(genome.color_val, rate, magnitude, "color_val", r),
         base_metabolism=_maybe_mutate(

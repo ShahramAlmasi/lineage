@@ -401,8 +401,8 @@ class Simulation:
             genome=child_genome,
             position=Position(parent_a.position.x, parent_a.position.y),
         )
-        new_sid = self.species_tracker.assign_species(child, self._tick)
-        if new_sid not in (parent_a.genome.species_id, parent_b.genome.species_id):
+        new_sid, is_new = self.species_tracker.assign_species(child, self._tick)
+        if is_new:
             self.events.append(
                 SimulationEvent(
                     self._tick,
@@ -421,8 +421,8 @@ class Simulation:
             genome=child_genome,
             position=Position(parent.position.x, parent.position.y),
         )
-        new_sid = self.species_tracker.assign_species(child, self._tick)
-        if new_sid != parent.genome.species_id:
+        new_sid, is_new = self.species_tracker.assign_species(child, self._tick)
+        if is_new:
             self.events.append(
                 SimulationEvent(
                     self._tick,

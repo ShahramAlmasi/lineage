@@ -71,8 +71,8 @@ class SpeciesTracker:
         self.extinction_events: list[ExtinctionEvent] = []
         self.phylogeny: dict[int, int | None] = {}
 
-    def assign_species(self, organism: Organism, tick: int) -> int:
-        """Assign a species to an organism. Returns the species ID."""
+    def assign_species(self, organism: Organism, tick: int) -> tuple[int, bool]:
+        """Assign a species to an organism. Returns (species_id, is_new)."""
         genome = organism.genome
 
         best_species_id: int | None = None
@@ -89,12 +89,12 @@ class SpeciesTracker:
         if best_species_id is not None:
             self.species[best_species_id].member_ids.add(organism.id)
             organism.genome.species_id = best_species_id
-            return best_species_id
+            return best_species_id, False
 
         new_id = self._create_new_species(genome, tick, None)
         self.species[new_id].member_ids.add(organism.id)
         organism.genome.species_id = new_id
-        return new_id
+        return new_id, True
 
     def _create_new_species(
         self, genome: Genome, tick: int, parent_id: int | None

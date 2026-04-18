@@ -11,8 +11,9 @@ class TestSpeciesTracker:
         tracker = SpeciesTracker(threshold=0.3)
         genome = random_genome(seed=42)
         org = Organism(id=1, genome=genome, position=Position(0, 0))
-        sid = tracker.assign_species(org, tick=0)
+        sid, is_new = tracker.assign_species(org, tick=0)
         assert sid == 1
+        assert is_new
         assert tracker.get_species_count() == 1
 
     def test_similar_organisms_same_species(self):
@@ -20,9 +21,11 @@ class TestSpeciesTracker:
         genome = random_genome(seed=42)
         org1 = Organism(id=1, genome=genome, position=Position(0, 0))
         org2 = Organism(id=2, genome=genome, position=Position(1, 1))
-        sid1 = tracker.assign_species(org1, tick=0)
-        sid2 = tracker.assign_species(org2, tick=0)
+        sid1, is_new1 = tracker.assign_species(org1, tick=0)
+        sid2, is_new2 = tracker.assign_species(org2, tick=0)
         assert sid1 == sid2
+        assert is_new1
+        assert not is_new2
 
     def test_different_organisms_different_species(self):
         tracker = SpeciesTracker(threshold=0.3)
@@ -30,8 +33,8 @@ class TestSpeciesTracker:
         g2 = random_genome(seed=999)
         org1 = Organism(id=1, genome=g1, position=Position(0, 0))
         org2 = Organism(id=2, genome=g2, position=Position(1, 1))
-        sid1 = tracker.assign_species(org1, tick=0)
-        sid2 = tracker.assign_species(org2, tick=0)
+        sid1, _ = tracker.assign_species(org1, tick=0)
+        sid2, _ = tracker.assign_species(org2, tick=0)
         assert sid1 != sid2
 
     def test_extinction_detection(self):
