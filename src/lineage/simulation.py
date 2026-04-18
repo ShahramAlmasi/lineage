@@ -61,8 +61,9 @@ class Simulation:
             self.world.organisms, self._tick
         )
         for msg in speciation_events:
+            event_type = "extinction" if "extinct" in msg.lower() else "speciation"
             self.events.append(
-                SimulationEvent(self._tick, msg, "speciation")
+                SimulationEvent(self._tick, msg, event_type)
             )
 
         for f in self.world.food:
@@ -109,6 +110,10 @@ class Simulation:
             o for o in nearby_organisms
             if o.genome.size > org.genome.size * 1.2
         ]
+        prey_list = [
+            o for o in nearby_organisms
+            if o.genome.size < org.genome.size * 0.8 and o.id != org.id
+        ]
         mates = [
             o for o in nearby_organisms
             if o.genome.can_interbreed(
@@ -132,6 +137,14 @@ class Simulation:
                 closest_predator_dist = d
                 closest_predator = p
 
+        closest_prey = None
+        closest_prey_dist = float("inf")
+        for pr in prey_list:
+            d = pos.distance_to(pr.position, width, height)
+            if d < closest_prey_dist:
+                closest_prey_dist = d
+                closest_prey = pr
+
         closest_mate = None
         closest_mate_dist = float("inf")
         for m in mates:
@@ -147,6 +160,9 @@ class Simulation:
             "predator_nearby": closest_predator is not None,
             "predator": closest_predator,
             "predator_distance": closest_predator_dist,
+            "prey_nearby": closest_prey is not None,
+            "prey": closest_prey,
+            "prey_distance": closest_prey_dist,
             "mate_nearby": closest_mate is not None,
             "mate": closest_mate,
             "mate_distance": closest_mate_dist,
@@ -327,21 +343,21 @@ class Simulation:
                 org.energy -= speed * 0.05
 
         elif action == BehaviorAction.ATTACK:
-            prey = perception.get("predator")
-            if prey and prey.alive and prey.genome.size < org.genome.size * 0.8:
+            target = perception.get("prey")
+            if target and target.alive:
                 dx, dy = org.position.direction_to(
-                    prey.position, width, height
+                    target.position, width, height
                 )
                 speed = org.speed()
                 org.position.move(dx * speed, dy * speed, width, height)
                 org.energy -= speed * 0.08
-                dist = org.position.distance_to(prey.position, width, height)
+                dist = org.position.distance_to(target.position, width, height)
                 if dist < 1.5:
                     damage = org.genome.size * 5.0
-                    prey.energy -= damage
+                    target.energy -= damage
                     org.energy += damage * 0.5
-                    if prey.energy <= 0:
-                        prey.mark_dead()
+                    if target.energy <= 0:
+                        target.mark_dead()
             else:
                 angle = self.rng.uniform(0, 2 * math.pi)
                 speed = org.speed()

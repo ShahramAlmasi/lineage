@@ -221,11 +221,19 @@ class RichRenderer(Renderer):
             self._fallback.render(simulation)
             return
 
+        from rich.layout import Layout
+        from rich.panel import Panel
         from rich.table import Table
         from rich.text import Text
 
         stats = simulation.world.statistics()
         species_count = simulation.species_tracker.get_species_count()
+
+        alive = [o for o in simulation.world.organisms if o.alive]
+        avg_fitness = 0.0
+        if alive:
+            fitnesses = [o.energy * (1 + o.age / 100.0) for o in alive]
+            avg_fitness = sum(fitnesses) / len(fitnesses)
 
         table = Table(title=f"Lineage — Tick {stats['tick']}")
         table.add_column("Metric", style="cyan")
@@ -235,10 +243,30 @@ class RichRenderer(Renderer):
         table.add_row("Species", str(species_count))
         table.add_row("Food", str(stats["food_count"]))
         table.add_row("Avg Energy", f"{stats['average_energy']:.1f}")
+        table.add_row("Avg Fitness", f"{avg_fitness:.1f}")
         table.add_row("Avg Age", str(stats["average_age"]))
         table.add_row("Max Age", str(stats["max_age"]))
         table.add_row("Births", str(stats["total_births"]))
         table.add_row("Deaths", str(stats["total_deaths"]))
 
+        events = simulation.get_events()[-10:]
+        event_text = "\n".join(
+            [f"[t={e.tick}] {e.message}" for e in events]
+        ) if events else "No recent events"
+
+        tree_text = simulation.species_tracker.get_phylogenetic_tree_ascii(max_depth=3)
+
+        layout = Layout()
+        layout.split_column(
+            Layout(table, name="stats", size=14),
+            Layout(name="lower"),
+        )
+        layout["lower"].split_row(
+            Layout(Panel(event_text, title="Events"), name="events"),
+            Layout(Panel(tree_text, title="Phylogeny"), name="phylogeny"),
+        )
+
         if self.live:
-            self.live.update(table)
+            self.live.update(layout)
+        else:
+            self.console.print(layout)
