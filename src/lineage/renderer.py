@@ -98,7 +98,7 @@ class TerminalRenderer(Renderer):
             gy = int(org.position.y / scale_y)
             if 0 <= gx < self.viewport_width and 0 <= gy < self.viewport_height:
                 char = self._organism_char(org)
-                color = self._species_color(org.genome.species_id)
+                color = self._genome_color(org.genome.color_hue)
                 grid[gy][gx] = f"{color}{char}\033[0m"
 
         border = "+" + "-" * self.viewport_width + "+"
@@ -119,21 +119,22 @@ class TerminalRenderer(Renderer):
         }
         return shape_map.get(org.genome.shape, "o")
 
-    def _species_color(self, species_id: int) -> str:
-        colors = [
-            "\033[31m",
-            "\033[33m",
-            "\033[34m",
-            "\033[35m",
-            "\033[36m",
-            "\033[91m",
-            "\033[92m",
-            "\033[93m",
-            "\033[94m",
-            "\033[95m",
-            "\033[96m",
+    def _genome_color(self, hue: float) -> str:
+        hue_map = [
+            (0, 15, "\033[31m"),
+            (15, 45, "\033[33m"),
+            (45, 75, "\033[92m"),
+            (75, 160, "\033[32m"),
+            (160, 200, "\033[36m"),
+            (200, 260, "\033[34m"),
+            (260, 300, "\033[35m"),
+            (300, 340, "\033[95m"),
+            (340, 360, "\033[31m"),
         ]
-        return colors[species_id % len(colors)]
+        for low, high, color in hue_map:
+            if low <= hue < high:
+                return color
+        return "\033[37m"
 
     def _render_stats(self, simulation: Simulation) -> list[str]:
         stats = simulation.world.statistics()
@@ -203,6 +204,7 @@ class RichRenderer(Renderer):
             self._has_rich = True
         except ImportError:
             self._has_rich = False
+            self.live = None
             self._fallback = TerminalRenderer(viewport_width, viewport_height)
 
     def start(self) -> None:
@@ -212,7 +214,7 @@ class RichRenderer(Renderer):
             self.live.start()
 
     def stop(self) -> None:
-        if self.live:
+        if hasattr(self, "live") and self.live:
             self.live.stop()
             self.live = None
 
