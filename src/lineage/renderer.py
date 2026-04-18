@@ -216,6 +216,30 @@ class RichRenderer(Renderer):
             self.live.stop()
             self.live = None
 
+    def _render_viewport_text(self, simulation: Simulation) -> str:
+        world = simulation.world
+        w, h = world.width(), world.height()
+        scale_x = w / self.viewport_width
+        scale_y = h / self.viewport_height
+
+        grid = [[" " for _ in range(self.viewport_width)] for _ in range(self.viewport_height)]
+
+        for f in world.food:
+            gx = int(f.position.x / scale_x)
+            gy = int(f.position.y / scale_y)
+            if 0 <= gx < self.viewport_width and 0 <= gy < self.viewport_height:
+                grid[gy][gx] = "."
+
+        for org in world.organisms:
+            if not org.alive:
+                continue
+            gx = int(org.position.x / scale_x)
+            gy = int(org.position.y / scale_y)
+            if 0 <= gx < self.viewport_width and 0 <= gy < self.viewport_height:
+                grid[gy][gx] = "o"
+
+        return "\n".join("".join(row) for row in grid)
+
     def render(self, simulation: Simulation) -> None:
         if not self._has_rich:
             self._fallback.render(simulation)
@@ -255,11 +279,16 @@ class RichRenderer(Renderer):
         ) if events else "No recent events"
 
         tree_text = simulation.species_tracker.get_phylogenetic_tree_ascii(max_depth=3)
+        viewport_text = self._render_viewport_text(simulation)
 
         layout = Layout()
         layout.split_column(
-            Layout(table, name="stats", size=14),
+            Layout(name="upper"),
             Layout(name="lower"),
+        )
+        layout["upper"].split_row(
+            Layout(Panel(viewport_text, title="World"), name="viewport"),
+            Layout(table, name="stats", size=30),
         )
         layout["lower"].split_row(
             Layout(Panel(event_text, title="Events"), name="events"),

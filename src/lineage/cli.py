@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .analysis import Analyzer
 from .config import SimulationConfig, get_preset
 from .recording import RecordingReader, RecordingWriter
 from .renderer import HeadlessRenderer, RichRenderer, TerminalRenderer
@@ -74,8 +75,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         sim_config = get_preset(args.preset)
         if args.seed is not None:
             sim_config.seed = args.seed
-        if args.output:
+            sim_config.world.seed = args.seed
+        if args.output is not None:
             sim_config.output_file = args.output
+        if args.ticks is not None:
+            sim_config.ticks = args.ticks
+        if args.record_every is not None:
+            sim_config.record_every_n_ticks = args.record_every
+        if args.render_every is not None:
+            sim_config.render_every_n_ticks = args.render_every
+        sim_config.headless = args.headless
     else:
         world_parts = args.world.split("x")
         if len(world_parts) != 2:
@@ -237,17 +246,44 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     print(f"Speciation events:  {summary['speciation_events']}")
     print(f"Extinction events:  {summary['extinction_events']}")
 
-    frames = reader.get_all_frames()
-    if frames:
-        last = frames[-1]
-        print("\nPhylogenetic Tree:")
+    analyzer = Analyzer(str(path))
+
+    lifespans = analyzer.species_lifespans()
+    if lifespans:
+        print("\nSpecies Lifespans:")
         print("-" * 50)
-        species_data = last.data.get("species", {})
-        for sid, s in species_data.get("species", {}).items():
-            status = "EXTINCT" if s.get("extinct_at_tick") else "ALIVE"
-            parent = s.get("parent_species_id", "none")
-            print(f"  Species {sid}: {status}, parent={parent}, "
-                  f"born at t={s.get('created_at_tick', '?')}")
+        for sp in lifespans[:20]:
+            life = f"t={sp.born_tick}" if sp.extinct_tick is None else f"t={sp.born_tick}..{sp.extinct_tick}"
+            print(f"  Species {sp.species_id}: {life}, peak={sp.peak_population}, parent={sp.parent_id}")
+
+    fitness = analyzer.fitness_over_time()
+    if fitness:
+        print("\nFitness Trajectory (sampled):")
+        print("-" * 50)
+        for ft in fitness[::max(1, len(fitness)//10)]:
+            print(f"  t={ft.tick}: avg={ft.average_fitness:.1f}, max={ft.max_fitness:.1f}, min={ft.min_fitness:.1f}")
+
+    extinctions = analyzer.extinction_events()
+    if extinctions:
+        print(f"\nExtinction Events ({len(extinctions)}):")
+        print("-" * 50)
+        for e in extinctions[:10]:
+            print(f"  t={e['tick']}: {e['message']}")
+
+    speciations = analyzer.speciation_events()
+    if speciations:
+        print(f"\nSpeciation Events ({len(speciations)}):")
+        print("-" * 50)
+        for e in speciations[:10]:
+            print(f"  t={e['tick']}: {e['message']}")
+
+    diversity = analyzer.diversity_metrics()
+    if diversity:
+        print("\nDiversity Metrics:")
+        print("-" * 50)
+        print(f"  Initial species: {diversity['initial_species']}")
+        print(f"  Final species:   {diversity['final_species']}")
+        print(f"  Turnover:        {diversity['species_turnover']}")
 
     return 0
 

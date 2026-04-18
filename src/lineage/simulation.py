@@ -401,7 +401,16 @@ class Simulation:
             genome=child_genome,
             position=Position(parent_a.position.x, parent_a.position.y),
         )
-        self.species_tracker.assign_species(child, self._tick)
+        new_sid = self.species_tracker.assign_species(child, self._tick)
+        if new_sid not in (parent_a.genome.species_id, parent_b.genome.species_id):
+            self.events.append(
+                SimulationEvent(
+                    self._tick,
+                    f"New species {new_sid} born from parents "
+                    f"{parent_a.genome.species_id} and {parent_b.genome.species_id}",
+                    "speciation",
+                )
+            )
 
     def _asexual_reproduction(self, parent: Organism) -> None:
         child_genome = mutate(parent.genome, rng=self.rng)
@@ -412,7 +421,16 @@ class Simulation:
             genome=child_genome,
             position=Position(parent.position.x, parent.position.y),
         )
-        self.species_tracker.assign_species(child, self._tick)
+        new_sid = self.species_tracker.assign_species(child, self._tick)
+        if new_sid != parent.genome.species_id:
+            self.events.append(
+                SimulationEvent(
+                    self._tick,
+                    f"New species {new_sid} diverged from species "
+                    f"{parent.genome.species_id} (asexual)",
+                    "speciation",
+                )
+            )
 
     def _apply_carrying_capacity(self) -> None:
         current_pop = len([o for o in self.world.organisms if o.alive])

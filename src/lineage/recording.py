@@ -23,11 +23,16 @@ class RecordingWriter:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = open(self.path, "w")
         self.frames_written = 0
+        self._last_event_index = 0
 
     def write_frame(self, simulation: Simulation) -> None:
         stats = simulation.world.statistics()
         stats["world_width"] = simulation.world.config.width
         stats["world_height"] = simulation.world.config.height
+
+        new_events = simulation.events[self._last_event_index:]
+        self._last_event_index = len(simulation.events)
+
         frame = {
             "tick": simulation._tick,
             "organisms": [
@@ -41,7 +46,7 @@ class RecordingWriter:
             "species": simulation.species_tracker.to_dict(),
             "events": [
                 {"tick": e.tick, "message": e.message, "type": e.event_type}
-                for e in simulation.events[-50:]
+                for e in new_events
             ],
         }
         self._file.write(json.dumps(frame) + "\n")

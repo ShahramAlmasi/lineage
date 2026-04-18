@@ -174,7 +174,7 @@ class SpeciesTracker:
             diverged: list[Organism] = []
             for org in members:
                 dist = org.genome.genetic_distance(rep)
-                if dist >= self.threshold * 1.5:
+                if dist >= self.threshold * 1.2:
                     diverged.append(org)
 
             if diverged and len(diverged) < len(members):
@@ -190,6 +190,8 @@ class SpeciesTracker:
                     f"New species {new_id} diverged from species {species_id} "
                     f"(t={tick}, {len(diverged)} members)"
                 )
+            elif members and tick % 100 == 0:
+                self.species[species_id].representative_genome = members[0].genome
 
         return events
 
