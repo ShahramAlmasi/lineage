@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .genome import BehaviorAction, BehaviorNodeType, Genome, crossover, mutate
 from .speciation import SpeciesTracker
@@ -31,7 +31,8 @@ class Simulation:
             threshold=config.world.speciation_threshold
         )
         self.events: list[SimulationEvent] = []
-        self.rng = random.Random(config.seed)
+        seed = config.seed if config.seed is not None else config.world.seed
+        self.rng = random.Random(seed)
         self._tick = 0
 
     def initialize(self) -> None:
@@ -290,7 +291,57 @@ class Simulation:
 
         elif action == BehaviorAction.REPRODUCE:
             if org.can_reproduce():
-                self._asexual_reproduction(org)
+                if org.genome.sexual_reproduction:
+                    nearby = self.world.nearby_organisms(
+                        org.position, org.genome.mate_detection_radius, exclude_id=org.id
+                    )
+                    mates = [
+                        o for o in nearby
+                        if o.genome.can_interbreed(
+                            org.genome, self.world.config.speciation_threshold
+                        )
+                    ]
+                    if mates:
+                        self._attempt_reproduction(org, mates[0])
+                    else:
+                        angle = self.rng.uniform(0, 2 * math.pi)
+                        speed = org.speed()
+                        org.position.move(
+                            math.cos(angle) * speed,
+                            math.sin(angle) * speed,
+                            width,
+                            height,
+                        )
+                        org.energy -= speed * 0.05
+                else:
+                    self._asexual_reproduction(org)
+            else:
+                angle = self.rng.uniform(0, 2 * math.pi)
+                speed = org.speed()
+                org.position.move(
+                    math.cos(angle) * speed,
+                    math.sin(angle) * speed,
+                    width,
+                    height,
+                )
+                org.energy -= speed * 0.05
+
+        elif action == BehaviorAction.ATTACK:
+            prey = perception.get("predator")
+            if prey and prey.alive and prey.genome.size < org.genome.size * 0.8:
+                dx, dy = org.position.direction_to(
+                    prey.position, width, height
+                )
+                speed = org.speed()
+                org.position.move(dx * speed, dy * speed, width, height)
+                org.energy -= speed * 0.08
+                dist = org.position.distance_to(prey.position, width, height)
+                if dist < 1.5:
+                    damage = org.genome.size * 5.0
+                    prey.energy -= damage
+                    org.energy += damage * 0.5
+                    if prey.energy <= 0:
+                        prey.mark_dead()
             else:
                 angle = self.rng.uniform(0, 2 * math.pi)
                 speed = org.speed()
@@ -322,8 +373,8 @@ class Simulation:
         ):
             return
 
-        child_genome = crossover(parent_a.genome, parent_b.genome)
-        child_genome = mutate(child_genome)
+        child_genome = crossover(parent_a.genome, parent_b.genome, self.rng)
+        child_genome = mutate(child_genome, rng=self.rng)
 
         parent_a.energy -= parent_a.reproduce_cost()
         parent_b.energy -= parent_b.reproduce_cost()
@@ -337,8 +388,7 @@ class Simulation:
         self.species_tracker.assign_species(child, self._tick)
 
     def _asexual_reproduction(self, parent: Organism) -> None:
-        """Asexual reproduction: clone + mutate."""
-        child_genome = mutate(parent.genome)
+        child_genome = mutate(parent.genome, rng=self.rng)
         parent.energy -= parent.reproduce_cost()
         parent.ticks_since_reproduction = 0
 

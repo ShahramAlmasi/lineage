@@ -251,7 +251,7 @@ class World:
         """Spawn a new organism."""
         if genome is None:
             from .genome import random_genome
-            genome = random_genome()
+            genome = random_genome(rng=self.rng)
 
         if position is None:
             x = self.rng.uniform(0, self.config.width)

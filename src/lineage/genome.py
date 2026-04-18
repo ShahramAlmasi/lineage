@@ -31,6 +31,7 @@ class BehaviorAction(Enum):
     REPRODUCE = auto()
     REST = auto()
     MOVE_TOWARD_CENTER = auto()
+    ATTACK = auto()
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,53 +289,56 @@ def _behavior_tree_distance(
     return min(dist / max_len, 1.0)
 
 
-def crossover(parent_a: Genome, parent_b: Genome) -> Genome:
-    """Sexual reproduction: combine two parent genomes."""
+def crossover(
+    parent_a: Genome, parent_b: Genome, rng: random.Random | None = None
+) -> Genome:
+    r = rng if rng is not None else random
     child = Genome(
-        size=_blend(parent_a.size, parent_b.size),
-        shape=random.choice([parent_a.shape, parent_b.shape]),
-        color_hue=_blend_angle(parent_a.color_hue, parent_b.color_hue),
-        color_sat=_blend(parent_a.color_sat, parent_b.color_sat),
-        color_val=_blend(parent_a.color_val, parent_b.color_val),
+        size=_blend(parent_a.size, parent_b.size, r),
+        shape=r.choice([parent_a.shape, parent_b.shape]),
+        color_hue=_blend_angle(parent_a.color_hue, parent_b.color_hue, r),
+        color_sat=_blend(parent_a.color_sat, parent_b.color_sat, r),
+        color_val=_blend(parent_a.color_val, parent_b.color_val, r),
         base_metabolism=_blend(
-            parent_a.base_metabolism, parent_b.base_metabolism
+            parent_a.base_metabolism, parent_b.base_metabolism, r
         ),
         photosynthesis_rate=_blend(
-            parent_a.photosynthesis_rate, parent_b.photosynthesis_rate
+            parent_a.photosynthesis_rate, parent_b.photosynthesis_rate, r
         ),
         movement_speed=_blend(
-            parent_a.movement_speed, parent_b.movement_speed
+            parent_a.movement_speed, parent_b.movement_speed, r
         ),
         food_detection_radius=_blend(
-            parent_a.food_detection_radius, parent_b.food_detection_radius
+            parent_a.food_detection_radius, parent_b.food_detection_radius, r
         ),
         predator_detection_radius=_blend(
             parent_a.predator_detection_radius,
             parent_b.predator_detection_radius,
+            r,
         ),
         mate_detection_radius=_blend(
-            parent_a.mate_detection_radius, parent_b.mate_detection_radius
+            parent_a.mate_detection_radius, parent_b.mate_detection_radius, r
         ),
         reproduction_threshold=_blend(
-            parent_a.reproduction_threshold, parent_b.reproduction_threshold
+            parent_a.reproduction_threshold, parent_b.reproduction_threshold, r
         ),
         reproduction_cost=_blend(
-            parent_a.reproduction_cost, parent_b.reproduction_cost
+            parent_a.reproduction_cost, parent_b.reproduction_cost, r
         ),
-        sexual_reproduction=random.choice(
+        sexual_reproduction=r.choice(
             [parent_a.sexual_reproduction, parent_b.sexual_reproduction]
         ),
         crossover_preference=_blend(
-            parent_a.crossover_preference, parent_b.crossover_preference
+            parent_a.crossover_preference, parent_b.crossover_preference, r
         ),
         mutation_rate=_blend(
-            parent_a.mutation_rate, parent_b.mutation_rate
+            parent_a.mutation_rate, parent_b.mutation_rate, r
         ),
         mutation_magnitude=_blend(
-            parent_a.mutation_magnitude, parent_b.mutation_magnitude
+            parent_a.mutation_magnitude, parent_b.mutation_magnitude, r
         ),
         behavior_tree=_crossover_behavior_tree(
-            parent_a.behavior_tree, parent_b.behavior_tree
+            parent_a.behavior_tree, parent_b.behavior_tree, r
         ),
         generation=max(parent_a.generation, parent_b.generation) + 1,
         parent_ids=(parent_a.species_id, parent_b.species_id),
@@ -342,16 +346,13 @@ def crossover(parent_a: Genome, parent_b: Genome) -> Genome:
     return child
 
 
-def _blend(a: float, b: float) -> float:
-    """Blend two values with some randomness."""
-    alpha = random.gauss(0.5, 0.15)
+def _blend(a: float, b: float, rng: random.Random) -> float:
+    alpha = rng.gauss(0.5, 0.15)
     alpha = max(0.0, min(1.0, alpha))
     return a * alpha + b * (1.0 - alpha)
 
 
-def _blend_angle(a: float, b: float) -> float:
-    """Blend two angles (0-360) correctly."""
-    # Convert to radians, average as vectors, convert back
+def _blend_angle(a: float, b: float, rng: random.Random) -> float:
     ra, rb = math.radians(a), math.radians(b)
     x = math.cos(ra) + math.cos(rb)
     y = math.sin(ra) + math.sin(rb)
@@ -359,40 +360,35 @@ def _blend_angle(a: float, b: float) -> float:
 
 
 def _crossover_behavior_tree(
-    tree_a: list[BehaviorNode], tree_b: list[BehaviorNode]
+    tree_a: list[BehaviorNode], tree_b: list[BehaviorNode], rng: random.Random
 ) -> list[BehaviorNode]:
-    """Combine two behavior trees."""
     if not tree_a:
         return list(tree_b)
     if not tree_b:
         return list(tree_a)
 
-    # Take prefix from one, suffix from other, or interleave
-    if random.random() < 0.5:
-        split = random.randint(0, len(tree_a))
+    if rng.random() < 0.5:
+        split = rng.randint(0, len(tree_a))
         result = tree_a[:split] + tree_b[split:]
     else:
         result = []
         for i in range(max(len(tree_a), len(tree_b))):
             if i < len(tree_a) and i < len(tree_b):
-                result.append(random.choice([tree_a[i], tree_b[i]]))
+                result.append(rng.choice([tree_a[i], tree_b[i]]))
             elif i < len(tree_a):
                 result.append(tree_a[i])
             else:
                 result.append(tree_b[i])
 
-    # Fix node references
     return _fix_tree_references(result)
 
 
 def _fix_tree_references(tree: list[BehaviorNode]) -> list[BehaviorNode]:
-    """Ensure all node references point to valid indices."""
     result = []
     for i, node in enumerate(tree):
         if not node.is_leaf:
             ref = node.if_false
             if isinstance(ref, int) and ref >= len(tree):
-                # Point to a safe leaf action
                 new_node = BehaviorNode(
                     condition=node.condition,
                     threshold=node.threshold,
@@ -426,55 +422,59 @@ MUTATION_BOUNDS: dict[str, tuple[float, float]] = {
 }
 
 
-def mutate(genome: Genome, global_mutation_rate: float | None = None) -> Genome:
-    """Mutate a genome. Uses the genome's own mutation rate if available."""
+def mutate(
+    genome: Genome,
+    global_mutation_rate: float | None = None,
+    rng: random.Random | None = None,
+) -> Genome:
+    r = rng if rng is not None else random
     rate = global_mutation_rate if global_mutation_rate is not None else genome.mutation_rate
     magnitude = genome.mutation_magnitude
 
     g = Genome(
-        size=_maybe_mutate(genome.size, rate, magnitude, "size"),
-        shape=_maybe_mutate_enum(genome.shape, rate, list(Shape)),
-        color_hue=(genome.color_hue + random.gauss(0, magnitude * 360)) % 360,
-        color_sat=_maybe_mutate(genome.color_sat, rate, magnitude, "color_sat"),
-        color_val=_maybe_mutate(genome.color_val, rate, magnitude, "color_val"),
+        size=_maybe_mutate(genome.size, rate, magnitude, "size", r),
+        shape=_maybe_mutate_enum(genome.shape, rate, list(Shape), r),
+        color_hue=(genome.color_hue + r.gauss(0, magnitude * 360)) % 360,
+        color_sat=_maybe_mutate(genome.color_sat, rate, magnitude, "color_sat", r),
+        color_val=_maybe_mutate(genome.color_val, rate, magnitude, "color_val", r),
         base_metabolism=_maybe_mutate(
-            genome.base_metabolism, rate, magnitude, "base_metabolism"
+            genome.base_metabolism, rate, magnitude, "base_metabolism", r
         ),
         photosynthesis_rate=_maybe_mutate(
-            genome.photosynthesis_rate, rate, magnitude, "photosynthesis_rate"
+            genome.photosynthesis_rate, rate, magnitude, "photosynthesis_rate", r
         ),
         movement_speed=_maybe_mutate(
-            genome.movement_speed, rate, magnitude, "movement_speed"
+            genome.movement_speed, rate, magnitude, "movement_speed", r
         ),
         food_detection_radius=_maybe_mutate(
-            genome.food_detection_radius, rate, magnitude, "food_detection_radius"
+            genome.food_detection_radius, rate, magnitude, "food_detection_radius", r
         ),
         predator_detection_radius=_maybe_mutate(
-            genome.predator_detection_radius, rate, magnitude, "predator_detection_radius"
+            genome.predator_detection_radius, rate, magnitude, "predator_detection_radius", r
         ),
         mate_detection_radius=_maybe_mutate(
-            genome.mate_detection_radius, rate, magnitude, "mate_detection_radius"
+            genome.mate_detection_radius, rate, magnitude, "mate_detection_radius", r
         ),
         reproduction_threshold=_maybe_mutate(
-            genome.reproduction_threshold, rate, magnitude, "reproduction_threshold"
+            genome.reproduction_threshold, rate, magnitude, "reproduction_threshold", r
         ),
         reproduction_cost=_maybe_mutate(
-            genome.reproduction_cost, rate, magnitude, "reproduction_cost"
+            genome.reproduction_cost, rate, magnitude, "reproduction_cost", r
         ),
         sexual_reproduction=genome.sexual_reproduction
-        if random.random() > rate * 0.1
+        if r.random() > rate * 0.1
         else not genome.sexual_reproduction,
         crossover_preference=_maybe_mutate(
-            genome.crossover_preference, rate, magnitude, "crossover_preference"
+            genome.crossover_preference, rate, magnitude, "crossover_preference", r
         ),
         mutation_rate=_maybe_mutate(
-            genome.mutation_rate, rate, magnitude, "mutation_rate"
+            genome.mutation_rate, rate, magnitude, "mutation_rate", r
         ),
         mutation_magnitude=_maybe_mutate(
-            genome.mutation_magnitude, rate, magnitude, "mutation_magnitude"
+            genome.mutation_magnitude, rate, magnitude, "mutation_magnitude", r
         ),
         behavior_tree=_mutate_behavior_tree(
-            genome.behavior_tree, rate, magnitude
+            genome.behavior_tree, rate, magnitude, r
         ),
         species_id=genome.species_id,
         generation=genome.generation,
@@ -484,11 +484,11 @@ def mutate(genome: Genome, global_mutation_rate: float | None = None) -> Genome:
 
 
 def _maybe_mutate(
-    value: float, rate: float, magnitude: float, key: str
+    value: float, rate: float, magnitude: float, key: str, rng: random.Random
 ) -> float:
-    if random.random() > rate:
+    if rng.random() > rate:
         return value
-    delta = random.gauss(0, magnitude)
+    delta = rng.gauss(0, magnitude)
     new_val = value + delta
     if key in MUTATION_BOUNDS:
         low, high = MUTATION_BOUNDS[key]
@@ -496,51 +496,53 @@ def _maybe_mutate(
     return new_val
 
 
-def _maybe_mutate_enum[T](value: T, rate: float, choices: list[T]) -> T:
-    if random.random() > rate * 0.3:
+def _maybe_mutate_enum[T](
+    value: T, rate: float, choices: list[T], rng: random.Random
+) -> T:
+    if rng.random() > rate * 0.3:
         return value
-    return random.choice(choices)
+    return rng.choice(choices)
 
 
 def _mutate_behavior_tree(
-    tree: list[BehaviorNode], rate: float, magnitude: float
+    tree: list[BehaviorNode], rate: float, magnitude: float, rng: random.Random
 ) -> list[BehaviorNode]:
     if not tree:
         return tree
 
     new_tree = []
     for node in tree:
-        if random.random() < rate * 0.2:
+        if rng.random() < rate * 0.2:
             continue
 
         new_node = node
-        if random.random() < rate:
+        if rng.random() < rate:
             new_node = BehaviorNode(
                 condition=node.condition,
-                threshold=max(0, node.threshold + random.gauss(0, magnitude * 50)),
+                threshold=max(0, node.threshold + rng.gauss(0, magnitude * 50)),
                 if_true=node.if_true,
                 if_false=node.if_false,
                 is_leaf=node.is_leaf,
             )
 
-        if random.random() < rate * 0.3:
+        if rng.random() < rate * 0.3:
             new_node = BehaviorNode(
                 condition=new_node.condition,
                 threshold=new_node.threshold,
-                if_true=random.choice(list(BehaviorAction)),
+                if_true=rng.choice(list(BehaviorAction)),
                 if_false=new_node.if_false,
                 is_leaf=new_node.is_leaf,
             )
 
         new_tree.append(new_node)
 
-    if random.random() < rate * 0.1 and len(new_tree) < 10:
+    if rng.random() < rate * 0.1 and len(new_tree) < 10:
         new_tree.append(
             BehaviorNode(
-                condition=random.choice(list(BehaviorNodeType)),
-                threshold=random.gauss(50, 20),
-                if_true=random.choice(list(BehaviorAction)),
-                if_false=random.choice(list(BehaviorAction)),
+                condition=rng.choice(list(BehaviorNodeType)),
+                threshold=rng.gauss(50, 20),
+                if_true=rng.choice(list(BehaviorAction)),
+                if_false=rng.choice(list(BehaviorAction)),
                 is_leaf=True,
             )
         )
@@ -548,48 +550,49 @@ def _mutate_behavior_tree(
     return _fix_tree_references(new_tree)
 
 
-def random_genome(seed: int | None = None) -> Genome:
-    """Generate a completely random genome."""
+def random_genome(
+    seed: int | None = None, rng: random.Random | None = None
+) -> Genome:
+    r = rng if rng is not None else random
     if seed is not None:
-        random.seed(seed)
+        r = random.Random(seed)
 
     return Genome(
-        size=random.uniform(0.5, 2.0),
-        shape=random.choice(list(Shape)),
-        color_hue=random.uniform(0, 360),
-        color_sat=random.uniform(0.3, 1.0),
-        color_val=random.uniform(0.3, 1.0),
-        base_metabolism=random.uniform(0.05, 0.3),
-        photosynthesis_rate=random.uniform(0.0, 0.5),
-        movement_speed=random.uniform(0.5, 2.0),
-        food_detection_radius=random.uniform(2.0, 10.0),
-        predator_detection_radius=random.uniform(2.0, 10.0),
-        mate_detection_radius=random.uniform(2.0, 10.0),
-        reproduction_threshold=random.uniform(30.0, 80.0),
-        reproduction_cost=random.uniform(15.0, 40.0),
-        sexual_reproduction=random.random() > 0.3,
-        crossover_preference=random.uniform(0.3, 0.7),
-        mutation_rate=random.uniform(0.01, 0.15),
-        mutation_magnitude=random.uniform(0.05, 0.3),
-        behavior_tree=_random_behavior_tree(),
+        size=r.uniform(0.5, 2.0),
+        shape=r.choice(list(Shape)),
+        color_hue=r.uniform(0, 360),
+        color_sat=r.uniform(0.3, 1.0),
+        color_val=r.uniform(0.3, 1.0),
+        base_metabolism=r.uniform(0.05, 0.3),
+        photosynthesis_rate=r.uniform(0.0, 0.5),
+        movement_speed=r.uniform(0.5, 2.0),
+        food_detection_radius=r.uniform(2.0, 10.0),
+        predator_detection_radius=r.uniform(2.0, 10.0),
+        mate_detection_radius=r.uniform(2.0, 10.0),
+        reproduction_threshold=r.uniform(30.0, 80.0),
+        reproduction_cost=r.uniform(15.0, 40.0),
+        sexual_reproduction=r.random() > 0.3,
+        crossover_preference=r.uniform(0.3, 0.7),
+        mutation_rate=r.uniform(0.01, 0.15),
+        mutation_magnitude=r.uniform(0.05, 0.3),
+        behavior_tree=_random_behavior_tree(r),
         generation=0,
     )
 
 
-def _random_behavior_tree() -> list[BehaviorNode]:
-    """Generate a random behavior tree."""
-    n_nodes = random.randint(2, 5)
+def _random_behavior_tree(rng: random.Random) -> list[BehaviorNode]:
+    n_nodes = rng.randint(2, 5)
     tree = []
     for i in range(n_nodes):
-        is_leaf = i == n_nodes - 1 or random.random() > 0.5
+        is_leaf = i == n_nodes - 1 or rng.random() > 0.5
         tree.append(
             BehaviorNode(
-                condition=random.choice(list(BehaviorNodeType)),
-                threshold=random.gauss(50, 20),
-                if_true=random.choice(list(BehaviorAction)),
-                if_false=random.choice(list(BehaviorAction))
+                condition=rng.choice(list(BehaviorNodeType)),
+                threshold=rng.gauss(50, 20),
+                if_true=rng.choice(list(BehaviorAction)),
+                if_false=rng.choice(list(BehaviorAction))
                 if is_leaf
-                else random.randint(i + 1, n_nodes),
+                else rng.randint(i + 1, n_nodes),
                 is_leaf=is_leaf,
             )
         )

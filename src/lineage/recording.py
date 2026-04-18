@@ -25,6 +25,9 @@ class RecordingWriter:
         self.frames_written = 0
 
     def write_frame(self, simulation: Simulation) -> None:
+        stats = simulation.world.statistics()
+        stats["world_width"] = simulation.world.config.width
+        stats["world_height"] = simulation.world.config.height
         frame = {
             "tick": simulation._tick,
             "organisms": [
@@ -34,7 +37,7 @@ class RecordingWriter:
                 {"x": f.position.x, "y": f.position.y, "energy": f.energy}
                 for f in simulation.world.food
             ],
-            "stats": simulation.world.statistics(),
+            "stats": stats,
             "species": simulation.species_tracker.to_dict(),
             "events": [
                 {"tick": e.tick, "message": e.message, "type": e.event_type}
@@ -98,9 +101,14 @@ class RecordingReader:
             for f in frames
         ]
 
+        seen_events: set[tuple[int, str]] = set()
         all_events = []
         for f in frames:
-            all_events.extend(f.data.get("events", []))
+            for e in f.data.get("events", []):
+                key = (e["tick"], e["message"])
+                if key not in seen_events:
+                    seen_events.add(key)
+                    all_events.append(e)
 
         speciation_events = [e for e in all_events if e["type"] == "speciation"]
         extinctions = [

@@ -57,9 +57,18 @@ class TerminalRenderer(Renderer):
         if self.show_events:
             lines.extend(self._render_events(simulation))
 
+        lines.extend(self._render_phylogeny(simulation))
+
         sys.stdout.write("\n".join(lines))
         sys.stdout.write("\n")
         sys.stdout.flush()
+
+    def _render_phylogeny(self, simulation: Simulation) -> list[str]:
+        tree = simulation.species_tracker.get_phylogenetic_tree_ascii(max_depth=3)
+        lines = tree.split("\n")
+        if len(lines) > 15:
+            lines = lines[:15]
+        return [""] + lines
 
     def _clear_screen(self) -> None:
         sys.stdout.write("\033[2J\033[H")
@@ -131,6 +140,12 @@ class TerminalRenderer(Renderer):
         species_count = simulation.species_tracker.get_species_count()
         species_pops = simulation.species_tracker.get_species_populations()
 
+        alive = [o for o in simulation.world.organisms if o.alive]
+        avg_fitness = 0.0
+        if alive:
+            fitnesses = [o.energy * (1 + o.age / 100.0) for o in alive]
+            avg_fitness = sum(fitnesses) / len(fitnesses)
+
         lines = [
             "",
             "─" * 40,
@@ -141,6 +156,7 @@ class TerminalRenderer(Renderer):
             f"Species:        {species_count}",
             f"Food:           {stats['food_count']}",
             f"Avg Energy:     {stats['average_energy']:.1f}",
+            f"Avg Fitness:    {avg_fitness:.1f}",
             f"Avg Age:        {stats['average_age']}",
             f"Max Age:        {stats['max_age']}",
             f"Total Births:   {stats['total_births']}",
