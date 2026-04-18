@@ -179,16 +179,15 @@ class World:
         return float(self.config.height)
 
     def spawn_food(self, count: int | None = None) -> None:
-        """Spawn food in the world, clustered around fertile zones."""
         if count is None:
-        current_pop = len(self.organisms)
-        carrying_capacity = self.config.max_population
-        pressure = current_pop / carrying_capacity
-        target_food = int(
-            self.config.initial_food * (1.0 - pressure * self.config.carrying_capacity_pressure * 10)
-        )
-        target_food = max(50, target_food)
-        count = max(0, target_food - len(self.food))
+            current_pop = len(self.organisms)
+            carrying_capacity = self.config.max_population
+            pressure = current_pop / carrying_capacity
+            target_food = int(
+                self.config.initial_food * (1.0 - pressure * self.config.carrying_capacity_pressure * 10)
+            )
+            target_food = max(50, target_food)
+            count = max(0, target_food - len(self.food))
 
         for _ in range(count):
             if self.config.fertile_zones and self.rng.random() < 0.7:
