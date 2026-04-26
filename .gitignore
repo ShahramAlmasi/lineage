@@ -10,3 +10,6 @@ htmlcov/
 *.jsonl
 .venv/
 venv/
+.sisyphus/
+node_modules/
+test-results/
